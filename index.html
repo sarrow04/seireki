@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>和暦西暦変換</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* カスタムスタイル */
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent; /* スマホでのタップ時のハイライトを無効化 */
+        }
+        .calculator-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+        .btn {
+            transition: all 0.1s ease-in-out;
+        }
+        .btn:active {
+            transform: scale(0.95);
+        }
+        .btn-era.active {
+            background-color: #3b82f6; /* bg-blue-500 */
+            color: white;
+            border-color: #2563eb; /* border-blue-600 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-sm mx-auto bg-white rounded-2xl shadow-2xl p-6 space-y-6">
+        <!-- Display Screen -->
+        <div class="bg-gray-800 text-white p-4 rounded-lg text-right break-words">
+            <div id="sub-display" class="text-gray-400 text-lg h-7"></div>
+            <div id="main-display" class="font-bold text-4xl h-12">0</div>
+        </div>
+
+        <!-- Mode Buttons -->
+        <div class="grid grid-cols-3 gap-2">
+             <button data-mode="seireki" class="mode-btn btn p-2 text-sm font-semibold rounded-md bg-blue-100 text-blue-700">西暦 → 和暦</button>
+             <button data-mode="wareki" class="mode-btn btn p-2 text-sm font-semibold rounded-md bg-gray-200 text-gray-700">和暦 → 西暦</button>
+             <button data-mode="age" class="mode-btn btn p-2 text-sm font-semibold rounded-md bg-gray-200 text-gray-700">年齢 → 生年</button>
+        </div>
+        
+        <!-- Era Buttons (最初は非表示) -->
+        <div id="era-buttons" class="grid grid-cols-5 gap-2 hidden">
+            <button data-era="令和" class="btn-era btn p-2 text-sm font-semibold rounded-md border-2 border-gray-300 bg-gray-200">令和</button>
+            <button data-era="平成" class="btn-era btn p-2 text-sm font-semibold rounded-md border-2 border-gray-300 bg-gray-200">平成</button>
+            <button data-era="昭和" class="btn-era btn p-2 text-sm font-semibold rounded-md border-2 border-gray-300 bg-gray-200">昭和</button>
+            <button data-era="大正" class="btn-era btn p-2 text-sm font-semibold rounded-md border-2 border-gray-300 bg-gray-200">大正</button>
+            <button data-era="明治" class="btn-era btn p-2 text-sm font-semibold rounded-md border-2 border-gray-300 bg-gray-200">明治</button>
+        </div>
+
+        <!-- Numpad and Actions -->
+        <div class="calculator-grid">
+            <button data-action="clear" class="btn text-2xl font-bold rounded-lg bg-red-400 text-white col-span-2">C</button>
+            <button data-action="backspace" class="btn text-2xl font-bold rounded-lg bg-gray-300">⌫</button>
+            <button data-num="7" class="btn text-2xl font-bold rounded-lg bg-gray-200">7</button>
+            <button data-num="8" class="btn text-2xl font-bold rounded-lg bg-gray-200">8</button>
+            <button data-num="9" class="btn text-2xl font-bold rounded-lg bg-gray-200">9</button>
+            <button data-action="convert" class="btn text-2xl font-bold rounded-lg bg-blue-500 text-white row-span-4">=</button>
+            <button data-num="4" class="btn text-2xl font-bold rounded-lg bg-gray-200">4</button>
+            <button data-num="5" class="btn text-2xl font-bold rounded-lg bg-gray-200">5</button>
+            <button data-num="6" class="btn text-2xl font-bold rounded-lg bg-gray-200">6</button>
+            <button data-num="1" class="btn text-2xl font-bold rounded-lg bg-gray-200">1</button>
+            <button data-num="2" class="btn text-2xl font-bold rounded-lg bg-gray-200">2</button>
+            <button data-num="3" class="btn text-2xl font-bold rounded-lg bg-gray-200">3</button>
+            <button data-num="0" class="btn text-2xl font-bold rounded-lg bg-gray-200 col-span-3">0</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM要素の取得
+            const mainDisplay = document.getElementById('main-display');
+            const subDisplay = document.getElementById('sub-display');
+            const eraButtonsContainer = document.getElementById('era-buttons');
+            const calculator = document.querySelector('.calculator-grid');
+
+            // 状態管理
+            let currentInput = '0';
+            let currentMode = 'seireki'; // 'seireki', 'wareki', 'age'
+            let selectedEra = null;
+            let result = '';
+
+            // 元号データ
+            const ERAS = [
+                { name: '令和', start: 2019, offset: 2018 },
+                { name: '平成', start: 1989, offset: 1988 },
+                { name: '昭和', start: 1926, offset: 1925 },
+                { name: '大正', start: 1912, offset: 1911 },
+                { name: '明治', start: 1868, offset: 1867 },
+            ];
+            
+            // UI更新関数
+            const updateUI = () => {
+                // メインディスプレイ
+                if (result) {
+                    mainDisplay.innerText = result;
+                } else if (currentMode === 'wareki' && selectedEra) {
+                    mainDisplay.innerText = `${selectedEra} ${currentInput === '0' ? '' : currentInput}年`;
+                } else {
+                    mainDisplay.innerText = currentInput;
+                }
+
+                // サブディスプレイ
+                let subText = '';
+                if(currentMode === 'seireki') subText = '西暦を入力してください';
+                if(currentMode === 'wareki') subText = '元号と年を入力';
+                if(currentMode === 'age') subText = '年齢を入力してください';
+                if (result) subText = '結果';
+                subDisplay.innerText = subText;
+
+                // モードボタンのスタイル
+                document.querySelectorAll('.mode-btn').forEach(btn => {
+                    if(btn.dataset.mode === currentMode){
+                        btn.classList.remove('bg-gray-200', 'text-gray-700');
+                        btn.classList.add('bg-blue-100', 'text-blue-700');
+                    } else {
+                        btn.classList.add('bg-gray-200', 'text-gray-700');
+                        btn.classList.remove('bg-blue-100', 'text-blue-700');
+                    }
+                });
+
+                // 元号ボタンの表示/非表示
+                if (currentMode === 'wareki') {
+                    eraButtonsContainer.classList.remove('hidden');
+                } else {
+                    eraButtonsContainer.classList.add('hidden');
+                }
+
+                // 選択中の元号ボタンのスタイル
+                document.querySelectorAll('.btn-era').forEach(btn => {
+                     btn.classList.toggle('active', btn.dataset.era === selectedEra);
+                });
+            };
+
+            // リセット関数
+            const clearAll = () => {
+                currentInput = '0';
+                selectedEra = null;
+                result = '';
+                updateUI();
+            };
+
+            // イベントリスナー
+            document.body.addEventListener('click', (e) => {
+                const target = e.target;
+                
+                // --- 数字ボタン ---
+                if (target.dataset.num) {
+                    if(result) clearAll(); // 結果表示後に数字を押したらリセット
+                    const num = target.dataset.num;
+                    if (currentInput === '0') {
+                        currentInput = num;
+                    } else {
+                        if (currentInput.length < 4) {
+                           currentInput += num;
+                        }
+                    }
+                }
+
+                // --- アクションボタン ---
+                if (target.dataset.action) {
+                    const action = target.dataset.action;
+                    if (action === 'clear') {
+                        clearAll();
+                    }
+                    if (action === 'backspace') {
+                        if(result) return;
+                        if (currentInput.length > 1) {
+                            currentInput = currentInput.slice(0, -1);
+                        } else {
+                            currentInput = '0';
+                        }
+                    }
+                    if (action === 'convert') {
+                        handleConvert();
+                    }
+                }
+                
+                // --- モードボタン ---
+                if(target.dataset.mode){
+                    currentMode = target.dataset.mode;
+                    clearAll(); // モード切替時にリセット
+                }
+
+                // --- 元号ボタン ---
+                if (target.dataset.era) {
+                    if(result) clearAll();
+                    selectedEra = target.dataset.era;
+                    currentMode = 'wareki';
+                    currentInput = '0';
+                }
+
+                updateUI();
+            });
+
+            // 変換処理
+            const handleConvert = () => {
+                const inputNum = parseInt(currentInput, 10);
+                if (isNaN(inputNum)) {
+                    result = '入力エラー';
+                    return;
+                }
+
+                if (currentMode === 'seireki') {
+                    // 西暦から和暦
+                    let found = false;
+                    for (const era of ERAS) {
+                        if (inputNum >= era.start) {
+                            const warekiYear = inputNum - era.offset;
+                            result = `${era.name} ${warekiYear === 1 ? '元' : warekiYear}年`;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        result = '明治以前';
+                    }
+                } else if (currentMode === 'wareki') {
+                    // 和暦から西暦
+                    if (!selectedEra || inputNum === 0) {
+                        result = '元号と年を入力';
+                        return;
+                    }
+                    const era = ERAS.find(e => e.name === selectedEra);
+                    if (era) {
+                        const seirekiYear = era.offset + inputNum;
+                        result = `${seirekiYear}年`;
+                    }
+                } else if (currentMode === 'age') {
+                    // 年齢から生年
+                    const currentYear = new Date().getFullYear();
+                    const birthYear = currentYear - inputNum;
+                    
+                    let warekiBirthYear = '明治以前';
+                     for (const era of ERAS) {
+                        if (birthYear >= era.start) {
+                            const year = birthYear - era.offset;
+                            warekiBirthYear = `${era.name}${year === 1 ? '元' : year}年`;
+                            break;
+                        }
+                    }
+                    result = `西暦${birthYear}年`;
+                    subDisplay.innerText = `(${warekiBirthYear}生)`;
+                }
+            };
+            
+            // 初期表示
+            updateUI();
+        });
+    </script>
+</body>
+</html>
